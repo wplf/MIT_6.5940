@@ -44,14 +44,16 @@ MiB = 1024 * KiB
 GiB = 1024 * MiB
 
 model_path = "facebook/opt-1.3b"
+# model_path = "/home/wplf/.cache/huggingface/hub/models--facebook--opt-1.3b/"
 tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
 model = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto")
 
 # # Evaluate the model
-# model_perplexity = evaluate(model, tokenizer)
-# model_size = get_model_size(model, data_width=32, group_size=128)
-# print(f"\nmodel perplexity: {model_perplexity:.2f}")
-# print(f"model size: {model_size/MiB:.2f} MiB")
+model_perplexity = evaluate(model, tokenizer)
+model_size = get_model_size(model, data_width=32, group_size=128)
+print("#" * 20 + "evaluating float perplexity and model size")
+print(f"\nmodel perplexity: {model_perplexity:.2f}")
+print(f"model size: {model_size/MiB:.2f} MiB")
 
 # core quantization method (simulated quantization)
 def pseudo_quantize_tensor(w, n_bit=4, q_group_size=-1):
@@ -100,17 +102,18 @@ def pseudo_quantize_model_weight(
             m.weight.data = pseudo_quantize_tensor(m.weight.data, n_bit=w_bit, q_group_size=q_group_size)
             
             
-# del model
-# gc.collect()
-# torch.cuda.empty_cache()
-# model = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto")
-# pseudo_quantize_model_weight(model, w_bit=3, q_group_size=128)
+del model
+gc.collect()
+torch.cuda.empty_cache()
+model = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto")
+pseudo_quantize_model_weight(model, w_bit=3, q_group_size=128)
 
 # # Evaluate the model
-# model_perplexity = evaluate(model, tokenizer)
-# model_size = get_model_size(model, data_width=3, group_size=128)
-# print(f"\nmodel perplexity: {model_perplexity:.2f}")
-# print(f"model size: {model_size/MiB:.2f} MiB")
+model_perplexity = evaluate(model, tokenizer)
+model_size = get_model_size(model, data_width=3, group_size=128)
+print("#" * 20 + "evaluating 4 bit model perplexity and model size (weight only), and use pseudo quantization (quantize and dequantize)")
+print(f"\nmodel perplexity: {model_perplexity:.2f}")
+print(f"model size: {model_size/MiB:.2f} MiB")
 
 def get_calib_dataset(tokenizer=None, n_samples=256, block_size=512):
     dataset = load_dataset("mit-han-lab/pile-val-backup", split="validation")
@@ -169,10 +172,10 @@ def get_calib_feat(model, tokenizer):
         hook.remove()
     return input_dict
 
-# del model
-# gc.collect()
-# torch.cuda.empty_cache()
-# model = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto")
+del model
+gc.collect()
+torch.cuda.empty_cache()
+model = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto")
 input_feat = get_calib_feat(model, tokenizer)
 
 
@@ -207,9 +210,15 @@ def pseudo_quantize_model_salient_weight_fp16(
             ############### YOUR CODE ENDS HERE #################
             
 
+del model
+gc.collect()
+torch.cuda.empty_cache()
+model = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto")
 
-# pseudo_quantize_model_salient_weight_fp16(model, w_bit=3, q_group_size=128, input_feat=input_feat)
-
+pseudo_quantize_model_salient_weight_fp16(model, w_bit=3, q_group_size=128, input_feat=input_feat)
+# Evaluate the model
+model_perplexity = evaluate(model, tokenizer)
+print(f"Processing 1% salient weight channels, and model perplexity is {model_perplexity}")
 
 @torch.no_grad()
 def pseudo_quantize_model_random_weight_fp16(
@@ -239,7 +248,16 @@ def pseudo_quantize_model_random_weight_fp16(
 
             ############### YOUR CODE ENDS HERE #################
 
-# pseudo_quantize_model_random_weight_fp16(model, w_bit=3, q_group_size=128, input_feat=input_feat)
+del model
+gc.collect()
+torch.cuda.empty_cache()
+model = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto")
+
+pseudo_quantize_model_random_weight_fp16(model, w_bit=3, q_group_size=128, input_feat=input_feat)
+# Evaluate the model
+model_perplexity = evaluate(model, tokenizer)
+print(f"Processing random weight quantization, and model perplexity is {model_perplexity}")
+
 
 @torch.no_grad()
 def pseudo_quantize_model_weight_scaleup(
@@ -271,22 +289,21 @@ def pseudo_quantize_model_weight_scaleup(
             ############### YOUR CODE ENDS HERE #################
 
 
-# for s in [1,2,3,4]:
+for s in [1,2,3,4]:
     
-#     print("#" * 20, "processing scale factor: ", s)
+    print("#" * 20, "processing scale factor: ", s)
     
-#     del model
-#     gc.collect()
-#     torch.cuda.empty_cache()
-#     model = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto")
+    del model
+    gc.collect()
+    torch.cuda.empty_cache()
+    model = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto")
     
-#     pseudo_quantize_model_weight_scaleup(model, w_bit=3, q_group_size=128, input_feat=input_feat, scale_factor=s)
-#     # Evaluate the model
-#     model_perplexity = evaluate(model, tokenizer)
-#     model_size = get_model_size(model, data_width=3, group_size=128)
-#     print(f"\nmodel perplexity: {model_perplexity:.2f}")
-#     print(f"model size: {model_size/MiB:.2f} MiB")
-#     print()
+    pseudo_quantize_model_weight_scaleup(model, w_bit=3, q_group_size=128, input_feat=input_feat, scale_factor=s)
+    # Evaluate the model
+    model_perplexity = evaluate(model, tokenizer)
+    model_size = get_model_size(model, data_width=3, group_size=128)
+    print(f"\n Processing AWQ weight quantization, and  model perplexity: {model_perplexity:.2f}")
+    print(f"model size: {model_size/MiB:.2f} MiB")
 
 
 @torch.no_grad()
@@ -451,14 +468,14 @@ def pseudo_quantize_model_weight_auto_scale(
         if isinstance(m, nn.Linear):
             m.weight.data = pseudo_quantize_tensor(m.weight.data, n_bit=w_bit, q_group_size=q_group_size)
             
-del model
-gc.collect()
-torch.cuda.empty_cache()
-model = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto")
-pseudo_quantize_model_weight_auto_scale(model, w_bit=3, q_group_size=128, input_feat=input_feat)
+# del model
+# gc.collect()
+# torch.cuda.empty_cache()
+# model = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto")
+# pseudo_quantize_model_weight_auto_scale(model, w_bit=3, q_group_size=128, input_feat=input_feat)
 
-# Evaluate the model
-model_perplexity = evaluate(model, tokenizer)
-model_size = get_model_size(model, data_width=3, group_size=128)
-print(f"\nmodel perplexity: {model_perplexity:.2f}")
-print(f"model size: {model_size/MiB:.2f} MiB")
+# # Evaluate the model
+# model_perplexity = evaluate(model, tokenizer)
+# model_size = get_model_size(model, data_width=3, group_size=128)
+# print(f"\nmodel perplexity: {model_perplexity:.2f}")
+# print(f"model size: {model_size/MiB:.2f} MiB")
